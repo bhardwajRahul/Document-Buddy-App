@@ -1,11 +1,9 @@
-# vectors.py
-
 import os
-import base64
 from langchain_community.document_loaders import UnstructuredPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Qdrant
+import streamlit as st
 
 class EmbeddingsManager:
     def __init__(
@@ -13,26 +11,21 @@ class EmbeddingsManager:
         model_name: str = "BAAI/bge-small-en",
         device: str = "cpu",
         encode_kwargs: dict = {"normalize_embeddings": True},
-        qdrant_url: str = "http://localhost:6333",
+        qdrant_url: str = st.secrets["QDRANT_URL"],    # Replace with actual
+        qdrant_api_key: str = st.secrets["QDRANT_API_KEY"],  # Replace with your API key
         collection_name: str = "vector_db",
     ):
         """
-        Initializes the EmbeddingsManager with the specified model and Qdrant settings.
-
-        Args:
-            model_name (str): The HuggingFace model name for embeddings.
-            device (str): The device to run the model on ('cpu' or 'cuda').
-            encode_kwargs (dict): Additional keyword arguments for encoding.
-            qdrant_url (str): The URL for the Qdrant instance.
-            collection_name (str): The name of the Qdrant collection.
+        Initializes the EmbeddingsManager with the specified model and Qdrant Cloud settings.
         """
         self.model_name = model_name
         self.device = device
         self.encode_kwargs = encode_kwargs
         self.qdrant_url = qdrant_url
+        self.qdrant_api_key = qdrant_api_key
         self.collection_name = collection_name
 
-        self.embeddings = HuggingFaceBgeEmbeddings(
+        self.embeddings = HuggingFaceEmbeddings(
             model_name=self.model_name,
             model_kwargs={"device": self.device},
             encode_kwargs=self.encode_kwargs,
@@ -40,18 +33,11 @@ class EmbeddingsManager:
 
     def create_embeddings(self, pdf_path: str):
         """
-        Processes the PDF, creates embeddings, and stores them in Qdrant.
-
-        Args:
-            pdf_path (str): The file path to the PDF document.
-
-        Returns:
-            str: Success message upon completion.
+        Processes the PDF, creates embeddings, and stores them in Qdrant Cloud.
         """
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"The file {pdf_path} does not exist.")
 
-        # Load and preprocess the document
         loader = UnstructuredPDFLoader(pdf_path)
         docs = loader.load()
         if not docs:
@@ -64,17 +50,16 @@ class EmbeddingsManager:
         if not splits:
             raise ValueError("No text chunks were created from the documents.")
 
-        # Create and store embeddings in Qdrant
         try:
             qdrant = Qdrant.from_documents(
                 splits,
                 self.embeddings,
                 url=self.qdrant_url,
+                api_key=self.qdrant_api_key,  # ✅ required for Qdrant Cloud
                 prefer_grpc=False,
                 collection_name=self.collection_name,
             )
         except Exception as e:
-            raise ConnectionError(f"Failed to connect to Qdrant: {e}")
+            raise ConnectionError(f"Failed to connect to Qdrant Cloud: {e}")
 
-        return "✅ Vector DB Successfully Created and Stored in Qdrant!"
-
+        return "✅ Vector DB Successfully Created and Stored in Qdrant Cloud!"
